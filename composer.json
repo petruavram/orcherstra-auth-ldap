@@ -1,0 +1,47 @@
+{
+	"name": "petruavram/orchestra-auth-ldap",
+	"version": "0.2",
+	"description": "Authenticate user over LDAP then store the user data in database using the Orchestra platfrom for Laravel",
+	"license": "MIT",
+	"homepage": "http://petruavram.github.io/orcherstra-auth-ldap",
+	"keywords": ["orchestra-platform", "orchestral", "laravel", "auth", "acl", "rbac", "permission", "ldap"],
+	"authors": [
+		{
+			"name": "Petru Vasile Avram",
+			"email": "avrampv@gmail.com",
+			"homepage": "https://github.com/petruavram"
+		}
+	],
+	"repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/petruavram/orcherstra-auth-ldap"
+        }
+    ],
+	"require": {
+		"php": ">=5.4.0",
+		"orchestra/auth": "2.2.*",
+		"adldap/adldap": "4.0.x"
+	},
+	"require-dev": {
+		"mockery/mockery": "0.9.*",
+		"patchwork/utf8": "1.1.*",
+		"illuminate/auth": "4.3.*",
+		"illuminate/database": "4.3.*"
+	},
+	"suggest": {
+		"laravel/framework": "Allows using adldap for the auth component of Orchestra\\Auth in Laravel apps",
+		"orchestra/auth": "Allows using adldap for the auth component of Orchestra\\Auth"
+	},
+	"extra": {
+		"branch-alias": {
+			"dev-master": "2.3-dev"
+		}
+	},
+	"minimum-stability": "dev",
+    "autoload": {
+        "psr-0": {
+            "petruavram\\OrchestraAuthLdap\\": "src/OrchestraAuthLdap/"
+        }
+    }
+}
