@@ -27,15 +27,10 @@
 		"laravel/framework": "Allows using adldap for the auth component of Orchestra\\Auth in Laravel apps",
 		"orchestra/auth": "Allows using adldap for the auth component of Orchestra\\Auth"
 	},
-	"extra": {
-		"branch-alias": {
-			"dev-master": "2.3-dev"
-		}
-	},
 	"minimum-stability": "dev",
     "autoload": {
         "psr-0": {
-            "petruavram\\OrchestraAuthLdap\\": "src/OrchestraAuthLdap/"
+            "petruavram\\OrchestraAuthLdap": "src/"
         }
     }
 }
