@@ -22,7 +22,8 @@
 		"mockery/mockery": "0.9.*",
 		"patchwork/utf8": "1.1.*",
 		"illuminate/auth": "4.3.*",
-		"illuminate/database": "4.3.*"
+		"illuminate/database": "4.3.*",
+        "illuminate/log": "~4.2"
 	},
 	"suggest": {
 		"laravel/framework": "Allows using adldap for the auth component of Orchestra\\Auth in Laravel apps",

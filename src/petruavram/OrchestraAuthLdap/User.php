@@ -14,7 +14,6 @@ class User extends \Orchestra\Model\User
 
 	public function __construct($attributes)
 	{
-		error_log('________$attributes________ : ' . print_r( $attributes, TRUE), 3, 'D:/dev/work/htdocs/gmab-project-tracking/app/storage/logs/laravel.log' );
 		$this->attributes = $attributes;
 	}
     /**
@@ -22,10 +21,33 @@ class User extends \Orchestra\Model\User
 	 *
 	 * @return mixed
 	 */
-    public function getAuthIdentifier()
+    public function getAuthIdentifiers()
 	{
-		$username = (Config::has('auth.username_field')) ? Config::get('auth.username_field') : 'username';
-		return $this->attributes[$username];
+		if ( Config::has('auth.identifiers') && Config::has('auth.default_identifier') ) {
+			$idFields = array();
+
+			$defaultIdentifier = Config::get('auth.default_identifier');
+
+			foreach ( Config::get('auth.identifiers') as $key => $identifier) {
+
+				if ( $key == $defaultIdentifier ) {
+					$idFields['default'] = $this->attributes[ $identifier ];
+				} else {
+					$idFields[$key] = $this->attributes[ $identifier ];
+				}
+			}
+
+			return $idFields;
+
+		} else if ( Config::has('auth.default_identifier') ) {
+
+			$defaultIdentifier = Config::get('auth.default_identifier');
+
+			return  $this->attributes[ $defaultIdentifier ];
+		} else {
+			return $this->attributes['username'];
+		}
+
 	}
     
     /**

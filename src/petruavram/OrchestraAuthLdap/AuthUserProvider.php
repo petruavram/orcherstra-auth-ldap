@@ -252,6 +252,29 @@ class AuthUserProvider implements UserProviderInterface
 
     protected function getUsernameField()
     {
-        return isset($this->config['username_field'])?$this->config['username_field']:'username';
+        if ( isset($this->config['auth.identifiers']) && isset($this->config['auth.default_identifier']) ) {
+            $idFields = array();
+
+            $defaultIdentifier = $this->config['auth.default_identifier'];
+
+            foreach ( $this->config['auth.identifiers'] as $key => $identifier) {
+
+                if ( $key == $defaultIdentifier ) {
+                    $idFields['default'] = $identifier;
+                } else {
+                    $idFields[$key] = $identifier;
+                }
+            }
+
+            return $idFields;
+
+        } else if ( isset($this->config['auth.default_identifier']) ) {
+
+            $defaultIdentifier = $this->config['auth.default_identifier'];
+
+            return  $defaultIdentifier;
+        } else {
+            return 'username';
+        }
     }
 }
