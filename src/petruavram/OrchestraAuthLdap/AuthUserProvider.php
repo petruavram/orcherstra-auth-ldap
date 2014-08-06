@@ -4,6 +4,8 @@ use Illuminate\Config\Repository;
 use adLDAP;
 use Illuminate\Auth\UserProviderInterface;
 use Illuminate\Auth\UserInterface;
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
 
 /**
  * Class to build array to send to GenericUser
@@ -53,7 +55,13 @@ class AuthUserProvider implements UserProviderInterface
         }
 
         if (isset($model)) {
-            $username = $model->$userNameField;
+
+            if ( is_array( $userNameField ) ) {
+                $username = $model->$userNameField['default'];
+            } else {
+                $username = $model->$userNameField;
+            }
+
         } else {
             $username = $identifier;
         }
@@ -76,8 +84,8 @@ class AuthUserProvider implements UserProviderInterface
     /**
      * Retrieve a user by by their unique identifier and "remember me" token.
      *
-     * @param  mixed  $identifier
-     * @param  string  $token
+     * @param  mixed $identifier
+     * @param  string $token
      * @return \Illuminate\Auth\UserInterface|null
      */
     public function retrieveByToken($identifier, $token)
@@ -98,14 +106,30 @@ class AuthUserProvider implements UserProviderInterface
      *
      * @param  array  $credentials
      * @return Illuminate\Auth\GenericUser|null
+     *
+     * TODO: refector all this 
      */
     public function retrieveByCredentials(array $credentials)
     {
-        if ( ! $user = $credentials[$this->getUsernameField()] ) {
+        $userCredentialsID = $this->getUsernameField();
+
+        if ( ! is_array( $userCredentialsID ) ) {
+            $user = $credentials[$this->getUsernameField()];
+        } else {
+
+            // TODO: this has no point in mult-auth scenarios
+
+            $intertsectArr = array_intersect( array_keys( $credentials ), $userCredentialsID );
+            if ( count ( $intertsectArr ) == 1 ) {
+                $user = $credentials[ $intertsectArr[0] ];
+            }
+        }
+
+        if ( ! isset($user) ) {
             throw new InvalidArgumentException;
         }
 
-        $infoCollection = $this->ad->user()->infoCollection($user, array('*'));
+        $infoCollection = $this->ad->user()->infoCollection( $user, array('*') );
 
         if ($infoCollection) {
             $ldapUserInfo = $this->setInfoArray($infoCollection);
@@ -252,12 +276,12 @@ class AuthUserProvider implements UserProviderInterface
 
     protected function getUsernameField()
     {
-        if ( isset($this->config['auth.identifiers']) && isset($this->config['auth.default_identifier']) ) {
+        if ( isset($this->config['identifiers']) && isset($this->config['default_identifier']) ) {
             $idFields = array();
 
-            $defaultIdentifier = $this->config['auth.default_identifier'];
+            $defaultIdentifier = $this->config['default_identifier'];
 
-            foreach ( $this->config['auth.identifiers'] as $key => $identifier) {
+            foreach ( $this->config['identifiers'] as $key => $identifier) {
 
                 if ( $key == $defaultIdentifier ) {
                     $idFields['default'] = $identifier;
@@ -268,9 +292,9 @@ class AuthUserProvider implements UserProviderInterface
 
             return $idFields;
 
-        } else if ( isset($this->config['auth.default_identifier']) ) {
+        } else if ( isset($this->config['default_identifier']) ) {
 
-            $defaultIdentifier = $this->config['auth.default_identifier'];
+            $defaultIdentifier = $this->config['default_identifier'];
 
             return  $defaultIdentifier;
         } else {
