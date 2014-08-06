@@ -31,7 +31,7 @@ class AuthServiceProvider extends ServiceProvider {
 		$this->app['auth'] = $this->app->share(function($app)
 		{
 			$app['app.loaded'] = true;
-			return new LdapAuthManager($app);
+			return new AuthManager($app);
 		});
 	}
 
