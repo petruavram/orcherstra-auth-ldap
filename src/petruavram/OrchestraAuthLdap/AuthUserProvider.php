@@ -10,7 +10,7 @@ use Illuminate\Auth\UserInterface;
  * This allows the fields in the array to be
  * accessed through the Auth::user() method
  */
-class LdapAuthUserProvider implements UserProviderInterface
+class AuthUserProvider implements UserProviderInterface
 {
     /**
      * Active Directory Object
@@ -69,7 +69,7 @@ class LdapAuthUserProvider implements UserProviderInterface
                 }
             }
 
-            return new LdapUser((array) $ldapUserInfo);
+            return new User((array) $ldapUserInfo);
         }
     }
 
@@ -121,7 +121,7 @@ class LdapAuthUserProvider implements UserProviderInterface
                 }
             }
 
-            return new LdapUser((array) $ldapUserInfo);
+            return new User((array) $ldapUserInfo);
         }
     }
 

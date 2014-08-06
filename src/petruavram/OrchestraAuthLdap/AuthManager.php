@@ -35,7 +35,7 @@ class AuthManager extends \Orchestra\Auth\AuthManager
         }
 
      
-        return new LdapAuthUserProvider($ad, $this->getAuthConfig(), $model);
+        return new AuthUserProvider($ad, $this->getAuthConfig(), $model);
     }
 
     protected function getAuthConfig()
