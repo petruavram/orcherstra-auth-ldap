@@ -8,7 +8,7 @@ use Illuminate\Auth;
  *
  * @author ccovey
  */
-class LdapUser implements Auth\UserInterface
+class User extends \Orchestra\Model\User
 {
 	protected $attributes;
 

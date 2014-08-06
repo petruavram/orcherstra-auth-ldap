@@ -69,7 +69,7 @@ class AuthUserProvider implements UserProviderInterface
                 }
             }
 
-            return new User((array) $ldapUserInfo);
+            return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
         }
     }
 
@@ -121,7 +121,7 @@ class AuthUserProvider implements UserProviderInterface
                 }
             }
 
-            return new User((array) $ldapUserInfo);
+            return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
         }
     }
 
