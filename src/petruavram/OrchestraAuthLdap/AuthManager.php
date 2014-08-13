@@ -35,7 +35,7 @@ class AuthManager extends \Orchestra\Auth\AuthManager
         }
 
      
-        return new AuthUserProvider($ad, $this->getAuthConfig(), $model);
+        return new AuthUserProvider( $this->app['hash'], $ad, $this->getAuthConfig(), $model);
     }
 
     protected function getAuthConfig()

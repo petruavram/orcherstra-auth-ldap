@@ -7,6 +7,14 @@ use Illuminate\Auth\UserInterface;
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 
+// use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+use Illuminate\Hashing\HasherInterface;
+
+
 /**
  * Class to build array to send to GenericUser
  * This allows the fields in the array to be
@@ -26,14 +34,26 @@ class AuthUserProvider implements UserProviderInterface
      * @var type string
      */
     protected $model;
+
+    /**
+     * The hasher implementation.
+     *
+     * @var \Illuminate\Hashing\HasherInterface
+     */
+    protected $hasher;
     
     /**
      * DI in adLDAP object for use throughout
      * 
      * @param adLDAP\adLDAP $conn
+     * @param array() $config
+     * @param string $model
+     *
+     * TODO: Exception handling. Throw InvalidArgumentException
      */
-    public function __construct(adLDAP\adLDAP $conn, $config, $model = null)
+    public function __construct(HasherInterface $hasher, adLDAP\adLDAP $conn, $config, $model)
     {
+        $this->hasher = $hasher;
         $this->ad = $conn;
         $this->config = $config;
         $this->model = $model;
@@ -47,38 +67,8 @@ class AuthUserProvider implements UserProviderInterface
      */
     public function retrieveByID($identifier)
     {
-        $ldapUserInfo = null;
-        $userNameField = $this->getUsernameField();
-
-        if ($this->model) {
-            $model = $this->createModel()->newQuery()->find($identifier);
-        }
-
-        if (isset($model)) {
-
-            if ( is_array( $userNameField ) ) {
-                $username = $model->$userNameField['default'];
-            } else {
-                $username = $model->$userNameField;
-            }
-
-        } else {
-            $username = $identifier;
-        }
-        
-        $infoCollection = $this->ad->user()->infoCollection($username, array('*') );
-
-        if ( $infoCollection ) {
-            $ldapUserInfo = $this->setInfoArray($infoCollection);
-
-            if ($this->model) {
-                if ( ! is_null($model) ) {
-                    return $this->addLdapToModel($model, $ldapUserInfo);
-                }
-            }
-
-            return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
-        }
+        // A model 
+        return $this->createModel()->newQuery()->find( $identifier );
     }
 
     /**
@@ -107,45 +97,115 @@ class AuthUserProvider implements UserProviderInterface
      * @param  array  $credentials
      * @return Illuminate\Auth\GenericUser|null
      *
-     * TODO: refector all this 
      */
     public function retrieveByCredentials(array $credentials)
     {
+        // get he user credentials form settings
         $userCredentialsID = $this->getUsernameField();
+        // Check which ones are usable for this model
+        $validUserIdentifierFields = $this->validUsernameFields( $userCredentialsID );
 
-        if ( ! is_array( $userCredentialsID ) ) {
-            $user = $credentials[$this->getUsernameField()];
+        // A model to work with for retriveing via model auth
+        $possibleModel = $this->createModel();
+
+        // If the credential given is 'any' we'll check all auth scenarious based on the settings and use the model 
+        // based auth method first
+        if ( array_key_exists( 'any', $credentials ) ) {
+
+            // the default has priority
+            if ( array_key_exists( 'default', $validUserIdentifierFields ) ) {
+                $userCredential = $validUserIdentifierFields['default'];
+
+                // Try the default attribute from the model to retrive the user
+                if ( $model = $possibleModel->where( $userCredential, $credentials[ 'any' ] )->newQuery()->first() ) {
+
+                    return $model;
+
+                } else {
+
+                    // Ldap auth and make new model
+                    $user = $credentials[ 'any' ];
+
+                    if ( ! isset($user) ) {
+                        throw new InvalidArgumentException;
+                    }
+
+                    // Get info from LDAP
+                    $infoCollection = $this->ad->user()->infoCollection( $user, array('*') );
+
+                    // If the user is found and we have the info
+                    if ( $infoCollection ) {
+                        $ldapUserInfo = $this->setInfoArray($infoCollection);
+
+                        // retrive user and make new user model
+                        return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
+                    }
+                }
+
+            }
+            
+            // Check all attributes to retrive the user and ulimatelly check using LDAP
+            foreach ( $validUserIdentifierFields as $userIdentifier ) {
+
+                // Fist check for attributes in the datbase using Model
+                if ( $model = $possibleModel->where( $userIdentifier, $credentials[ 'any' ] )->newQuery()->first() ) {
+
+                    return $model;
+
+                } else {
+
+                    // Ldap auth and make new model
+                    $user = $credentials[ 'any' ];
+
+                    
+                    if ( ! isset($user) ) {
+                        throw new InvalidArgumentException;
+                    }
+
+                    // Get the info for the user from AD over LDAP
+                    $infoCollection = $this->ad->user()->infoCollection( $user, array('*') );
+
+                    if ( $infoCollection ) {
+
+                        $ldapUserInfo = $this->setInfoArray($infoCollection);
+
+                        return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
+
+                    } else {
+                        return false;
+                    }
+                }
+            }
+
         } else {
 
-            // TODO: this has no point in mult-auth scenarios
+            foreach ( $credentials as $key => $credential ) {
+                // If the auth identifier by which we login is specified we'll use that 
 
-            $intertsectArr = array_intersect( array_keys( $credentials ), $userCredentialsID );
-            if ( count ( $intertsectArr ) == 1 ) {
-                $user = $credentials[ $intertsectArr[0] ];
-            }
-        }
+                if ( in_array( $key,  $validUserIdentifierFields ) ) {
 
-        if ( ! isset($user) ) {
-            throw new InvalidArgumentException;
-        }
+                    if ( $key == 'ldap' ) {
+                        // Ldap auth and make new model
 
-        $infoCollection = $this->ad->user()->infoCollection( $user, array('*') );
+                        $infoCollection = $this->ad->user()->infoCollection( $credential, array('*') );
 
-        if ($infoCollection) {
-            $ldapUserInfo = $this->setInfoArray($infoCollection);
-            if ($this->model) {
-                $query = $this->createModel()->newQuery();
+                        if ( $infoCollection ) {
+                            $ldapUserInfo = $this->setInfoArray($infoCollection);
 
-                foreach ($credentials as $k => $credential) {
-                    if ( ! str_contains($k, 'password') && ! str_contains($k, '_token') ) $query->where($k, $credential);
+                            return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
+                        }
+
+                    }
+
+                    if ( $key != 'password' ) {
+
+                        if ( $model = $possibleModel->where( $key, $credential )->newQuery()->first() ) {
+                            return $model;
+                        }
+
+                    }
                 }
-
-                if ($model = $query->first()) {
-                    return $this->addLdapToModel($model, $ldapUserInfo);
-                }
             }
-
-            return new \petruavram\OrchestraAuthLdap\User((array) $ldapUserInfo);
         }
     }
 
@@ -158,7 +218,67 @@ class AuthUserProvider implements UserProviderInterface
      */
     public function validateCredentials(UserInterface $user, array $credentials)
     {
-        return $this->ad->authenticate($credentials['username'], $credentials['password']);
+       
+        // get he user credentials form settings
+        $userCredentialsID = $this->getUsernameField();
+        // Check which ones are usable for this model
+        $validUserIdentifierFields = $this->validUsernameFields( $userCredentialsID );
+
+        // A model to work with for retriveing via model auth
+        $possibleModel = $this->createModel();
+
+        // If the credential given is 'any' we'll check all auth scenarious based on the settings and use the model 
+        // based auth method first
+        if ( array_key_exists( 'any', $credentials ) ) {
+            
+            // The default 
+            if ( array_key_exists( 'default', $validUserIdentifierFields ) ) {
+
+                return $this->hasher->check( $credentials['password'], $user->getAuthPassword() );
+
+            }
+                
+            foreach ( $validUserIdentifierFields as $userIdentifier ) {
+
+                if ( $model = $possibleModel->where( $userCredential, $credentials[ 'any' ] )->newQuery()->first() ) {
+                    return $this->hasher->check( $credentials['password'], $user->getAuthPassword() );
+                } else {
+
+                    // Ldap auth and make new model
+                    return $this->ad->authenticate( $credentials[ $userIdentifier ], $credentials['password'] );
+
+                }
+
+            }
+
+        } else {
+
+            foreach ( $credentials as $key => $credential ) {
+
+                // If the auth identifier by which we login is specified we'll use that 
+                if ( in_array( $key,  $validUserIdentifierFields ) ) {
+
+                    if ( $key == 'ldap' ) {
+                        // Ldap auth and make new model
+
+                        $infoCollection = $this->ad->user()->infoCollection( $credential, array('*') );
+
+                        if ( $infoCollection ) {
+                            $ldapUserInfo = $this->setInfoArray($infoCollection);
+
+                            return $this->ad->authenticate($credentials['ldap'], $credentials['password']);
+                        }
+
+                    }
+
+                    if ( $key == 'password' ) {
+
+                        return $this->hasher->check( $credential, $user->getAuthPassword() );
+
+                    }
+                }
+            }
+        }   
     }
     
     /**
@@ -176,18 +296,18 @@ class AuthUserProvider implements UserProviderInterface
         * refer to the adLDAP docs for which fields are available.
         */
 
-
         if ( ! empty($this->config['fields'])) {
             foreach ($this->config['fields'] as $k => $field) {
                 if ($k == 'groups') {
                     $info[$k] = $this->getAllGroups($infoCollection->memberof);
-                }elseif ($k == 'primarygroup') {
+                } elseif ($k == 'primarygroup') {
                     $info[$k] = $this->getPrimaryGroup($infoCollection->distinguishedname);
-                }else{
+                } else {
                     $info[$k] = $infoCollection->$field;
                 }
             }
-        }else{
+            
+        } else {
             //if no fields array present default to username and displayName
             $info['username'] = $infoCollection->samaccountname;
             $info['displayname'] = $infoCollection->displayName;
@@ -208,7 +328,7 @@ class AuthUserProvider implements UserProviderInterface
     }
 
     /**
-     * 
+     * Makes an user model form the string speficied in c-tor args
      * @return Illuminate\Auth\UserInterface
      */
     public function createModel()
@@ -269,6 +389,10 @@ class AuthUserProvider implements UserProviderInterface
         return $grps;
     }
 
+    /**
+     * Gets the current model name string
+     * @return type
+     */
     public function getModel()
     {
         return $this->model;
@@ -300,5 +424,58 @@ class AuthUserProvider implements UserProviderInterface
         } else {
             return 'username';
         }
+    }
+
+    /**
+     * Check if field is present in the model used for authentification
+     * @return bool
+     */
+    protected function checkField( $field ) {
+
+        $columns = DB::select('SHOW COLUMNS FROM `' . $this->createModel()->getTable() . '`');
+        $fields = array();
+        foreach($columns as $col){
+            $fields[] = $col->Field;
+        }
+
+        if ( in_array( $field, $fields ) ) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Return an array with all the fields that exists in the model that can be
+     * used as username from the identifiers config auth option
+     *
+     * @param mixed $fields - an array of strings or string with the identifiers from auth setting
+     * @return a a
+     */
+    protected function validUsernameFields( $identifierFields ) {
+               
+        $resultsArr = array();
+
+        // Verify if the identifier field(s) given are present in the model
+        if ( ! is_array( $identifierFields ) ) {        // For 1 identifier
+
+            if ( $this->checkField( $identifierFields ) ) {
+
+                $resultsArr['default'] = $identifierFields;
+                
+            }
+            
+        } else {                                        // For many identifiers
+
+            foreach ( $identifierFields as $key => $identifierField ) {
+
+                if ( $this->checkField( $identifierField ) ) {
+
+                    $resultsArr[$key] = $identifierField;
+                }
+            }
+        }
+
+        return $resultsArr;
     }
 }
