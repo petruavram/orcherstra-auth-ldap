@@ -3,6 +3,8 @@
 use Config;
 use Illuminate\Auth;
 
+use Illuminate\Support\Facades\Log;
+
 /**
  * Description of LdapUser
  *

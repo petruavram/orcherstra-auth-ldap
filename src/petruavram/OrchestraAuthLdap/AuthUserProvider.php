@@ -234,8 +234,37 @@ class AuthUserProvider implements UserProviderInterface
             // The default 
             if ( array_key_exists( 'default', $validUserIdentifierFields ) ) {
 
-                return $this->hasher->check( $credentials['password'], $user->getAuthPassword() );
+                 $userCredential = $validUserIdentifierFields['default'];
 
+                // Try the default attribute from the model to retrive the user
+                if ( $model = $possibleModel->where( $userCredential, $credentials[ 'any' ] )->newQuery()->first() ) {
+
+                    return $this->hasher->check( $credentials['password'], $user->getAuthPassword() );
+
+                } else {
+
+                    // Ldap auth and make new model
+                    $user = $credentials[ 'any' ];
+
+                    
+                    if ( ! isset($user) ) {
+                        throw new InvalidArgumentException;
+                    }
+
+                    // Get the info for the user from AD over LDAP
+                    $infoCollection = $this->ad->user()->infoCollection( $user, array('*') );
+
+                    if ( $infoCollection ) {
+
+                        $ldapUserInfo = $this->setInfoArray($infoCollection);
+
+                        $authenticated = $this->ad->authenticate( $credentials[ 'any' ], $credentials['password'] );
+
+                        if ( $authenticated == true ) {
+                            return $authenticated;
+                        }
+                    }
+                }
             }
                 
             foreach ( $validUserIdentifierFields as $userIdentifier ) {
@@ -245,7 +274,7 @@ class AuthUserProvider implements UserProviderInterface
                 } else {
 
                     // Ldap auth and make new model
-                    return $this->ad->authenticate( $credentials[ $userIdentifier ], $credentials['password'] );
+                    return $this->ad->authenticate( $credentials[ 'any' ], $credentials['password'] );
 
                 }
 
